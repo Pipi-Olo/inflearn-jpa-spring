@@ -3,6 +3,10 @@ package study.datajpa.repository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
 import study.datajpa.dto.MemberDto;
@@ -170,5 +174,78 @@ class MemberRepositoryTest {
         // JPA 는 결과가 없으면 NoResultException 을 터트린다. SpringDataJPA 는 try~catch 로 잡아서 null 을 반환한다.
         // 단건 조회는 Optional 로 받는다.
         // 반환 값이 단건인데, 결과 값이 2개 이상이면 Exception 이 터진다.
+    }
+
+    @Test
+    public void paging() {
+        // Given
+        memberRepository.save(new Member("member1", 10));
+        memberRepository.save(new Member("member2", 10));
+        memberRepository.save(new Member("member3", 10));
+        memberRepository.save(new Member("member4", 10));
+        memberRepository.save(new Member("member5", 10));
+        memberRepository.save(new Member("member6", 10));
+        memberRepository.save(new Member("member7", 10));
+
+        // Spring Data JPA 는 페이지가 0부터 시작한다. 주의!
+        PageRequest pageRequest = PageRequest.of(0, 3, Sort.by(Sort.Direction.DESC, "username"));
+        int age = 10;
+
+        // When
+        Page<Member> page = memberRepository.findByAge(age, pageRequest); // Page 안에 totalCount 쿼리가 자동으로 날라간다.
+        // 문제가 있다. 만약 조인을 해서 할 경우, 기본 값이 countQuery 도 조인해서 count 값을 가져온다.
+        // 하지만, count 쿼리는 (어차피 레프트 조인이라면) 조인할 이유가 없다. -> 성능 이슈 데이터가 많아지면 굉장히 큰 장애
+        // 이럴 경우 countQuery를 별도로 구별할 수 있다.
+        // Sorting 조건이 복잡해지면 @Query 통해 직접 jpql 입력한다.
+        // 단순 최단 3개 조회라면 Top3 조회가 있다.
+
+        // HTTP API 인 경우 DTO 변환해서 반환해야 한다.
+        // page.map() 을 통해 편하게 변환이 가능하다.
+        Page<MemberDto> map = page.map(member -> new MemberDto(member.getId(), member.getUsername(), member.getTeam().getName()));
+
+        // Then
+        List<Member> content = page.getContent();
+        long totalElements = page.getTotalElements(); // totalCount
+
+        assertThat(content.size()).isEqualTo(3);
+        assertThat(page.getTotalElements()).isEqualTo(7);
+        assertThat(page.getNumber()).isEqualTo(0); // page 개수
+        assertThat(page.getTotalPages()).isEqualTo(3); // 총 페이지 개수 3개 ==> 7개, 1개 페이지당 3개
+        assertThat(page.isFirst()).isTrue();
+        assertThat(page.hasNext()).isTrue();
+
+        for (Member member : content) {
+            System.out.println("member = " + member);
+        }
+        System.out.println("totalElements = " + totalElements);
+    }
+
+    @Test
+    public void pagingSlice() {
+        // Given
+        memberRepository.save(new Member("member1", 10));
+        memberRepository.save(new Member("member2", 10));
+        memberRepository.save(new Member("member3", 10));
+        memberRepository.save(new Member("member4", 10));
+        memberRepository.save(new Member("member5", 10));
+        memberRepository.save(new Member("member6", 10));
+        memberRepository.save(new Member("member7", 10));
+
+        PageRequest pageRequest = PageRequest.of(0, 3, Sort.by(Sort.Direction.DESC, "username"));
+        int age = 10;
+
+        // When
+        // Slice 는 총 totalCount 에 관심없다. -> count 쿼리 안 날라간다.
+        // limit + 1 개를 가져온 다음에,
+        // 더보기 등 으로 구현하는 것
+        Slice<Member> page = memberRepository.findSliceByAge(age, pageRequest); // Page 안에 totalCount 쿼리가 자동으로 날라간다.
+
+        // Then
+        List<Member> content = page.getContent();
+
+        assertThat(content.size()).isEqualTo(3);
+        assertThat(page.getNumber()).isEqualTo(0);
+        assertThat(page.isFirst()).isTrue();
+        assertThat(page.hasNext()).isTrue();
     }
 }
