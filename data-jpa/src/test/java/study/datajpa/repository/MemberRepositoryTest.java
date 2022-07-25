@@ -286,4 +286,36 @@ class MemberRepositoryTest {
         // JDBC, MyBatis 랑 JPA 랑 섞어서 쓸 때, 주의해야한다.
         // 벌크연산처럼 JPA 가 인식하지 못 하기 때문에, 플러쉬 - 클리어 작업이 필요하다.
     }
+
+    @Test
+    public void findMemberLazy() {
+        // Given
+        Team teamA = new Team("teamA");
+        Team teamB = new Team("teamB");
+
+        teamRepository.save(teamA);
+        teamRepository.save(teamB);
+
+        Member member1 = new Member("member1", 10, teamA);
+        Member member2 = new Member("member2", 20, teamB);
+
+        memberRepository.save(member1);
+        memberRepository.save(member2);
+
+        em.flush();
+        em.clear();
+
+        // When
+        // List<Member> members = memberRepository.findAll();
+        // List<Member> members = memberRepository.findMemberFetchJoin(); // 페치 조인으로 1 + N 문제 해결 // 그냥 조인을 하면 select 에 멤버만 들어오는데, 페치 조인을 하면 select 에 team 가지 가져와준다.
+        List<Member> members = memberRepository.findAll(); // @Override + @EntityGraph 통해서 해결 -> 내부적으로 어차피 페치 조인 사용한다.
+        for (Member member : members) {
+            System.out.println("member = " + member.getUsername());
+            System.out.println("member.team = " + member.getTeam().getName()); // 1 + N 문제 발생..
+        }
+        // 1 + N 문제는 member 를 조회할 때도 발생할 수 있고,
+        // Team 을 조회할 때도 발생할 수 있다.
+        // 네트워크를 N 번 더 타기 때문에 느릴 수 밖에 없다.
+        // EC2 -> RDS 오우 쉩;; 개 느림
+    }
 }

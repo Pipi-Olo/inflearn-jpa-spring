@@ -3,6 +3,7 @@ package study.datajpa.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -64,4 +65,17 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     @Modifying(clearAutomatically = true) // true 값을 주면 em.clear() 를 자동으로 실시해 준다. 벌크 연산 - 영속성 컨텍스트 문제를 해결해준다.
     @Query("update Member m set m.age = m.age + 1 where m.age >= :age")
     int bulkAgePlus(@Param("age") int age);
+
+    @Query("select m from Member m left join fetch m.team")
+    List<Member> findMemberFetchJoin();
+
+    @Override
+//    @EntityGraph(attributePaths = "team") // 페치 조인을 해야된다. -> jpql 을 짜야하는데 귀찮다. -> @EntityGraph 사용
+    @EntityGraph("Member.all") // JPA 의 @NamedEntityGraph 기능을 사용 한것
+    List<Member> findAll();
+
+    // @EntityGraph 는 @Query 하고도 같이 쓸 수 있고, 메소드 이름 기반 쿼리에도 사용할 수 있다.
+    // 참고로 페치 조인은 기본적으로 레프트 아웃터 조인이 나간다.
+    // 근데 사실 @EntityGraph 는 JPA 의 @NamedEntityGraph 를 사용한 기능이다.
+    // 간단한 경우 SpringDataJPA @EntityGraph 를 쓰면 되고, 복잡한 경우에는 직접 jpql 을 짠다. 혹은 querydsl
 }
