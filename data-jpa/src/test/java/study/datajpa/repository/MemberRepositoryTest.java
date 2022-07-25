@@ -11,6 +11,7 @@ import study.datajpa.entity.Team;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.as;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -150,5 +151,24 @@ class MemberRepositoryTest {
         for (Member member : members) {
             System.out.println("member = " + member);
         }
+    }
+
+    @Test
+    public void returnType() {
+        Member member1 = new Member("AAA", 10);
+        Member member2 = new Member("BBB", 20);
+
+        memberRepository.save(member1);
+        memberRepository.save(member2);
+
+        List<Member> members = memberRepository.findListByUsername("AAA"); // 단건이라는 보장이 있으면 List 로 안 받아도 된다. 알아서 반환 값에 맞게 SpringDataJPA 가 반환해준다.
+        Member findMember = memberRepository.findMemberByUsername("AAA");
+        Optional<Member> findOptional = memberRepository.findOptionalByUsername("AAA");
+
+        // 컬렉션 반환 일 때는 알맞은 데이터가 없을 때, 빈 컬렉션을 반환해준다. 절대 NULL 이 아니다.
+        // 단건 조회일 때는 알맞은 데이터가 없을 때, NULL 을 반환한다.
+        // JPA 는 결과가 없으면 NoResultException 을 터트린다. SpringDataJPA 는 try~catch 로 잡아서 null 을 반환한다.
+        // 단건 조회는 Optional 로 받는다.
+        // 반환 값이 단건인데, 결과 값이 2개 이상이면 Exception 이 터진다.
     }
 }
