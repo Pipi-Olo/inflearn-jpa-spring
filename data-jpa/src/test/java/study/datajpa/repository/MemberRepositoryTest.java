@@ -9,6 +9,7 @@ import study.datajpa.entity.Member;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.as;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Transactional @Rollback(value = false)
@@ -87,5 +88,19 @@ class MemberRepositoryTest {
         for (Member member : members) {
             assertThat(member.getUsername()).isEqualTo("AAA");
         }
+    }
+
+    @Test
+    public void testQuery() {
+        Member member1 = new Member("AAA", 10);
+        Member member2 = new Member("BBB", 20);
+
+        memberRepository.save(member1);
+        memberRepository.save(member2);
+
+        List<Member> members = memberRepository.findUser("AAA", 10);
+
+        assertThat(members.size()).isEqualTo(1);
+        assertThat(members.get(0)).isEqualTo(member1);
     }
 }

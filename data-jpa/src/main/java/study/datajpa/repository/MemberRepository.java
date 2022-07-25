@@ -9,6 +9,9 @@ import java.util.List;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
 
+    // 간단한 쿼리가 필요할 때 사용한다.
+    // 메소드 명이 너무 길어져 인식하기 어려워진다.
+    // 최대 조건 2개 정도 생각한다.
     List<Member> findByUsernameAndAgeGreaterThan(String username, int age);
 
     List<Member> findTop3By();
@@ -21,4 +24,12 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     // 정적 쿼리 이기 때문에, 미리
     // 기본적으로 jpql 은 문자열이기 때문에, 실제 실행해보기 전까지는 제대로 동작하는지 모른다. 하지만, @NamedQuery 는 다르다.
     List<Member> findByUsername(@Param("username") String username);
+
+    // @NamedQuery 와 동일하게 애플리케이션 로딩 시점에 쿼리 오류를 확인할 수 있다.
+    // @NamedQuery 의 강력항 장점과 엔티티를 깔끔하게 유지할 수 있는 매우 좋은 기능이다.
+    // 동시에 메소드명으로 쿼리를 만들어주는 기능과 다르게 자유롭게 메소드 명을 설정할 수 있다.
+    // 정적 쿼리는 메소드명 쿼리 혹은 @Query 를 사용하는 것이 좋다.
+    // 동적 쿼리는 querydsl 사용한다.
+    @Query("select m from Member m where m.username = :username and m.age = :age")
+    List<Member> findUser(@Param("username") String username, @Param("age") int age);
 }
