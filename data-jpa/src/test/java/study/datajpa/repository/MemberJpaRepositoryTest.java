@@ -5,9 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
-import study.datajpa.entity.Hello;
 import study.datajpa.entity.Member;
-import study.datajpa.entity.Team;
 
 import java.util.List;
 
@@ -75,5 +73,19 @@ class MemberJpaRepositoryTest {
         assertThat(members.get(0).getUsername()).isEqualTo("member");
         assertThat(members.get(0).getAge()).isEqualTo(20);
         assertThat(members.size()).isEqualTo(1);
+    }
+
+    @Test
+    public void testNamedQuery() {
+        Member member1 = new Member("AAA", 10);
+        Member member2 = new Member("BBB", 20);
+
+        memberJpaRepository.save(member1);
+        memberJpaRepository.save(member2);
+
+        List<Member> members = memberJpaRepository.findByUsername("AAA");
+        for (Member member : members) {
+            assertThat(member.getUsername()).isEqualTo("AAA");
+        }
     }
 }
