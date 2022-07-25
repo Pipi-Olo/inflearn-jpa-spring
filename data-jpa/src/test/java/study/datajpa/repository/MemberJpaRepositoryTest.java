@@ -122,4 +122,20 @@ class MemberJpaRepositoryTest {
 
         // JPA 는 방언이 있기 때문에 데이터베이스가 변경되어도 페이징 동작한다.
     }
+
+    @Test
+    public void bulkUpdate() {
+        // Given
+        memberJpaRepository.save(new Member("member1", 10));
+        memberJpaRepository.save(new Member("member2", 20));
+        memberJpaRepository.save(new Member("member3", 30));
+        memberJpaRepository.save(new Member("member4", 40));
+        memberJpaRepository.save(new Member("member5", 50));
+
+        // When
+        int resultCount = memberJpaRepository.bulkAgePlus(20);
+
+        // Then
+        assertThat(resultCount).isEqualTo(4);
+    }
 }

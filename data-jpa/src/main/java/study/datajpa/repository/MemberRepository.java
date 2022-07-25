@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import study.datajpa.dto.MemberDto;
@@ -58,4 +59,9 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     @Query(value = "select m from Member m", countQuery = "select count(m.username) from Member m")
     Page<Member> findByAgeDetachCountQuery(int age, Pageable pageable);
+
+    // @Modifying JPA executeUpdate() 벌크 연산을 실시함. 안하면 Exception
+    @Modifying(clearAutomatically = true) // true 값을 주면 em.clear() 를 자동으로 실시해 준다. 벌크 연산 - 영속성 컨텍스트 문제를 해결해준다.
+    @Query("update Member m set m.age = m.age + 1 where m.age >= :age")
+    int bulkAgePlus(@Param("age") int age);
 }

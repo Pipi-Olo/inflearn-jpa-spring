@@ -13,11 +13,12 @@ import study.datajpa.dto.MemberDto;
 import study.datajpa.entity.Member;
 import study.datajpa.entity.Team;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.as;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Transactional @Rollback(value = false)
@@ -29,6 +30,9 @@ class MemberRepositoryTest {
 
     @Autowired
     TeamRepository teamRepository;
+
+    @PersistenceContext
+    EntityManager em;
 
     @Test
     public void testMember() {
@@ -247,5 +251,39 @@ class MemberRepositoryTest {
         assertThat(page.getNumber()).isEqualTo(0);
         assertThat(page.isFirst()).isTrue();
         assertThat(page.hasNext()).isTrue();
+    }
+
+    @Test
+    public void bulkUpdate() {
+        // Given
+        memberRepository.save(new Member("member1", 10));
+        memberRepository.save(new Member("member2", 20));
+        memberRepository.save(new Member("member3", 30));
+        memberRepository.save(new Member("member4", 40));
+        memberRepository.save(new Member("member5", 50));
+
+        // When
+        int resultCount = memberRepository.bulkAgePlus(20);
+
+        // 사실 jpql 나가기 전에, em.flush() 가 반영된다.
+
+        // 같은 트랜잭션이면 같은 엔티티 매니저를 사용한다.
+        // 리포지토리에서는 영속성 컨텍스트를 초기화 할 수 없다. 엔티티 매니저가 필요하다.
+        em.flush(); // 변경사항 반영
+        em.clear(); // 영속성 컨텍스트 클리어
+
+        // Then
+        assertThat(resultCount).isEqualTo(4);
+
+        // JPA 벌크 연산은 조심해야한다!
+        // JPA 벌크 연산은 영속성 컨텍스트없이 동작한다.
+        // 분명 벌크 연산을 통해서 20살 이상의 나이를 + 1살 했지만,
+        // 영속성 컨텍스트에 있는 멤버는 아직 + 1 살 되지 않았다.
+        // 따라서 영속성 컨텍스트의 초기화 작업이 필요하다.
+        // 혹은 벌크 연산을 트랜잭션 시작 후 제알 먼저 연산한다.
+        // 애초에 영속성 컨텍스트가 비어져 있으므로 영향을 받을 엔티티가 없다.
+
+        // JDBC, MyBatis 랑 JPA 랑 섞어서 쓸 때, 주의해야한다.
+        // 벌크연산처럼 JPA 가 인식하지 못 하기 때문에, 플러쉬 - 클리어 작업이 필요하다.
     }
 }
