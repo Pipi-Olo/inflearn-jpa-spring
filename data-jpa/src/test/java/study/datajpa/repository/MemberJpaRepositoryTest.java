@@ -88,4 +88,38 @@ class MemberJpaRepositoryTest {
             assertThat(member.getUsername()).isEqualTo("AAA");
         }
     }
+
+    @Test
+    public void paging() {
+        // Given
+        memberJpaRepository.save(new Member("member1", 10));
+        memberJpaRepository.save(new Member("member2", 10));
+        memberJpaRepository.save(new Member("member3", 10));
+        memberJpaRepository.save(new Member("member4", 10));
+        memberJpaRepository.save(new Member("member5", 10));
+        memberJpaRepository.save(new Member("member6", 10));
+        memberJpaRepository.save(new Member("member7", 10));
+
+        // page 1 offset = 0, limit = 10
+        // page 2 offset = 10, limit = 20
+
+        int age = 10;
+        int offset = 0;
+        int limit = 3;
+
+        // When
+        List<Member> members = memberJpaRepository.findByPage(age, offset, limit);
+        long totalCount = memberJpaRepository.totalCount(age);
+
+        // 페이지 계산 공식
+        // totalPage = totalCount / size
+        // 마지막 페이지.. 시작 페이지.. 등
+        // 하지만, 걱정하지 마라. SpringDataJPA 가 다 제공해준다.
+
+        // Then
+        assertThat(members.size()).isEqualTo(3); // limit 이 3이기 때문에 0,1,2 가 나오는게 맞다.
+        assertThat(totalCount).isEqualTo(7);
+
+        // JPA 는 방언이 있기 때문에 데이터베이스가 변경되어도 페이징 동작한다.
+    }
 }
