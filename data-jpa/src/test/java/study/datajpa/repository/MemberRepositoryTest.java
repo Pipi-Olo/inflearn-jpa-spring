@@ -318,4 +318,42 @@ class MemberRepositoryTest {
         // 네트워크를 N 번 더 타기 때문에 느릴 수 밖에 없다.
         // EC2 -> RDS 오우 쉩;; 개 느림
     }
+
+    @Test
+    public void queryHint() {
+        // Given
+        Member member1 = new Member("member1", 10);
+        memberRepository.save(member1);
+
+        em.flush();
+        em.clear();
+
+        // When
+        Member findMember = memberRepository.findReadOnlyByUsername(member1.getUsername());
+        findMember.setUsername("member2");
+
+        em.flush();
+
+        // 변경 감지는 내부에 객체를 2개 가지고 있다. 스냅샷 1개 - 현 상태 1개
+        // 추가적인 비용이 든다.
+
+        // 만약 데이터 변경의 목적이 없어도, 불필요한 메모리 낭비가 있다. -> JPA Hint 기능을 사용한다. -> 내부에 스냅샷을 만들지 않는다. -> 변견 감지가 동작하지 않는다. -> 변경을 해도 업데이트 쿼리 안 날라감
+        // 하이버에니트가 제공하는 기능 O / JPA 는 제공하지 않는다.
+
+        // 성능 최적화가 되지만, 얼마 안 된다.
+        // 성능 문제가 발생하면 쿼리 자체가 잘 못나가는 경우가 90% 이걸 한다고해서 성능 이슈가 해결되거나 하지는 않는다.
+        // @QueryHint 를 통해서 모든 것에 대해서 다 넣어서 성능 최적화를 해도 얼마 안 된다. -> 물론 가장 좋은 방법은 성능 테스트를 실시해보고 효과가 있을 떄 넣는 것이다.
+        // 물론 성능이 안 좋으면 알아서 캐시 (레디시)를 깐다.
+    }
+
+    @Test
+    public void findLockByUsername() {
+        Member member1 = new Member("member1", 10);
+        memberRepository.save(member1);
+
+        em.flush();
+        em.clear();
+
+        Member findMember = memberRepository.findLockByUsername(member1.getUsername());
+    }
 }

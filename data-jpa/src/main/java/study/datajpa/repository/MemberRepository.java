@@ -3,14 +3,13 @@ package study.datajpa.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import study.datajpa.dto.MemberDto;
 import study.datajpa.entity.Member;
 
+import javax.persistence.LockModeType;
+import javax.persistence.QueryHint;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -78,4 +77,12 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     // 참고로 페치 조인은 기본적으로 레프트 아웃터 조인이 나간다.
     // 근데 사실 @EntityGraph 는 JPA 의 @NamedEntityGraph 를 사용한 기능이다.
     // 간단한 경우 SpringDataJPA @EntityGraph 를 쓰면 되고, 복잡한 경우에는 직접 jpql 을 짠다. 혹은 querydsl
+    @QueryHints(value = @QueryHint(name = "org.hibernate.readOnly", value = "true"))
+    Member findReadOnlyByUsername(String username);
+
+    // SpringDataJpa 는 애노테이션으로 편리하게 동작해줌.
+    // 실시간 트래픽이 많은 곳에서는 사용하면 안 된다. -> 옵디먹스락 등 락을 걸지 않는 다른 방법을 찾아봐야 한다. 실제 락을 걸지 않는 다른 Optimistic 락 (낙관적 락)
+    // PESSIMISTIC_WRITE 은 비관적 락임
+    @Lock(LockModeType.PESSIMISTIC_WRITE) // JPA 꺼임 select for update 쿼리가 나간다. 조회임에도 불구하고 디비에 락을 걸 수 있다.
+    Member findLockByUsername(String username);
 }
