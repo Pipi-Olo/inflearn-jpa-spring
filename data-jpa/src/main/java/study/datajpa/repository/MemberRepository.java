@@ -6,6 +6,8 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import study.datajpa.dto.MemberDto;
+import study.datajpa.dto.UsernameOnly;
+import study.datajpa.dto.UsernameOnlyDto;
 import study.datajpa.entity.Member;
 
 import javax.persistence.LockModeType;
@@ -85,4 +87,9 @@ public interface MemberRepository extends JpaRepository<Member, Long>, MemberRep
     // PESSIMISTIC_WRITE 은 비관적 락임
     @Lock(LockModeType.PESSIMISTIC_WRITE) // JPA 꺼임 select for update 쿼리가 나간다. 조회임에도 불구하고 디비에 락을 걸 수 있다.
     Member findLockByUsername(String username);
+
+    List<UsernameOnly> findProjectionsByUsername(@Param("username") String username);
+    List<UsernameOnlyDto> findProjectionsDtoByUsername(@Param("username") String username);
+
+    <T> List<T> findProjectionDtoGenericByUsername(@Param("username") String username, Class<T> type);
 }

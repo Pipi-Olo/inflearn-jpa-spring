@@ -8,6 +8,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
 import study.datajpa.dto.MemberDto;
+import study.datajpa.dto.NestedClosedProjections;
+import study.datajpa.dto.UsernameOnly;
+import study.datajpa.dto.UsernameOnlyDto;
 import study.datajpa.entity.Member;
 import study.datajpa.entity.Team;
 
@@ -422,5 +425,35 @@ class MemberRepositoryTest {
 
         // Then
         assertThat(members.get(0).getUsername()).isEqualTo("member1");
+    }
+
+    @Test
+    void projections() {
+        // Given
+        Team teamA = new Team("teamA");
+        em.persist(teamA);
+
+        Member member1 = new Member("member1", 10, teamA);
+        Member member2 = new Member("member2", 10, teamA);
+        em.persist(member1);
+        em.persist(member2);
+
+        em.flush();
+        em.clear();
+
+        // When
+        List<UsernameOnly> result = memberRepository.findProjectionsByUsername("member1"); // 인터페이스를 정의하면 실제 구현체는 springdatajpa 가 만들어 준다. -> 프록시로 들어온다.
+                                                                                           // 전에 엔티티가 아니라 일부만 즉 DTO 조회할 떄 편리하다.
+
+        List<UsernameOnlyDto> member11 = memberRepository.findProjectionsDtoByUsername("member1"); // 프록시가 아닌 실제 내가 만든 객체가 들어온다. 딱 내가 원하는 데이터만 select 절에 들어온다.
+
+        List<UsernameOnlyDto> member12 = memberRepository.findProjectionDtoGenericByUsername("member1", UsernameOnlyDto.class); // 제네릭으로 사용할 수 있음. 다양한 타입 가능 동적 프로젝션
+
+        List<NestedClosedProjections> member13 = memberRepository.findProjectionDtoGenericByUsername("member1", NestedClosedProjections.class); // 얀관관계에 있는 것을 DTO 로 조회 -> 중첩 구조 -> 첫번쨰 멤버는 필요한 username 만 조회 (최적화 완료) 하지만, 그 연관관계에 있는 Team 은 엔티티 단위로 조회해서 넣는다. (최적화 X)
+
+
+        for (UsernameOnly usernameOnly : result) {
+            System.out.println("usernameOnly = " + usernameOnly);
+        }
     }
 }
