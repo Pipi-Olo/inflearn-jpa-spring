@@ -12,6 +12,16 @@ spring:
       hibernate:
         format_sql: true
 
+  data:
+    web:
+      pageable:
+        default-page-size: 10
+        max-page-size: 2000
+        one-indexed-parameters: true
+        # 한계 : 조회해서 읽으때는 괜찮지만, Page 반환 값이 문제임.
+        # page=1 로 조회해도 page 반환 값은 0으로 되어 있음 -> 그냥 0부터 쓰는게 편하다..
+
 logging.level:
   org.hibernate.SQL: debug
   #org.hibernate.type: trace
+
