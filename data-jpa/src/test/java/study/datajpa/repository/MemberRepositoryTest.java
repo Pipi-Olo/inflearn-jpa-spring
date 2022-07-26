@@ -3,10 +3,7 @@ package study.datajpa.repository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Slice;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
@@ -392,5 +389,38 @@ class MemberRepositoryTest {
 
         // Then
         assertThat(members.size()).isEqualTo(1);
+    }
+
+    @Test
+    public void queryByExample() {
+        // Given
+        Team teamA = new Team("teamA");
+        em.persist(teamA);
+
+        Member member1 = new Member("member1", 10, teamA);
+        Member member2 = new Member("member2", 10, teamA);
+        em.persist(member1);
+        em.persist(member2);
+
+        em.flush();
+        em.clear();
+
+        // When
+        // Probe
+        Member member = new Member("member1");
+        Team team = new Team("teamA");
+        member.setTeam(team); // 연관관계 까지 고려해서 검색해줌
+
+        ExampleMatcher matcher = ExampleMatcher.matching() // 무시하고 싶은 조건 추
+                .withIgnorePaths("age");
+
+        Example<Member> example = Example.of(member, matcher); // 도메인 객체를 바탕으로 조회한다.
+
+        List<Member> members = memberRepository.findAll(example); // JpaRepository 인터페이스가 QueryByExample 인터페이스를 확장하고 있음.
+
+        // 문제점 : 내부 조인만 가능함. 레프트 조인, 아웃터 조인은 불가능함.
+
+        // Then
+        assertThat(members.get(0).getUsername()).isEqualTo("member1");
     }
 }
