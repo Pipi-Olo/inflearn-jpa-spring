@@ -356,4 +356,15 @@ class MemberRepositoryTest {
 
         Member findMember = memberRepository.findLockByUsername(member1.getUsername());
     }
+
+    @Test
+    public void custom() {
+        Member member1 = new Member("member1", 10);
+        memberRepository.save(member1);
+
+        em.flush();
+        em.clear();
+
+        List<Member> members = memberRepository.findMemberCustom();
+    }
 }
