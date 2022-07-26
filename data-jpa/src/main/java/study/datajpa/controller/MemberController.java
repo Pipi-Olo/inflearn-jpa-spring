@@ -42,7 +42,7 @@ public class MemberController {
                 .map(MemberDto::new); // Member 엔티티를 받는 생성자가 있기 떄문에 가능함.
     }
 
-    @PostConstruct
+//    @PostConstruct
     public void init() {
         for (int i = 0; i < 100; i++) {
             memberRepository.save(new Member("member " + i, i));
