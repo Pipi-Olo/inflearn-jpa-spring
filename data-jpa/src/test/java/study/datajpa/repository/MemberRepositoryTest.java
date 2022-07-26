@@ -7,10 +7,7 @@ import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
-import study.datajpa.dto.MemberDto;
-import study.datajpa.dto.NestedClosedProjections;
-import study.datajpa.dto.UsernameOnly;
-import study.datajpa.dto.UsernameOnlyDto;
+import study.datajpa.dto.*;
 import study.datajpa.entity.Member;
 import study.datajpa.entity.Team;
 
@@ -444,16 +441,43 @@ class MemberRepositoryTest {
         // When
         List<UsernameOnly> result = memberRepository.findProjectionsByUsername("member1"); // 인터페이스를 정의하면 실제 구현체는 springdatajpa 가 만들어 준다. -> 프록시로 들어온다.
                                                                                            // 전에 엔티티가 아니라 일부만 즉 DTO 조회할 떄 편리하다.
-
         List<UsernameOnlyDto> member11 = memberRepository.findProjectionsDtoByUsername("member1"); // 프록시가 아닌 실제 내가 만든 객체가 들어온다. 딱 내가 원하는 데이터만 select 절에 들어온다.
-
         List<UsernameOnlyDto> member12 = memberRepository.findProjectionDtoGenericByUsername("member1", UsernameOnlyDto.class); // 제네릭으로 사용할 수 있음. 다양한 타입 가능 동적 프로젝션
-
         List<NestedClosedProjections> member13 = memberRepository.findProjectionDtoGenericByUsername("member1", NestedClosedProjections.class); // 얀관관계에 있는 것을 DTO 로 조회 -> 중첩 구조 -> 첫번쨰 멤버는 필요한 username 만 조회 (최적화 완료) 하지만, 그 연관관계에 있는 Team 은 엔티티 단위로 조회해서 넣는다. (최적화 X)
-
 
         for (UsernameOnly usernameOnly : result) {
             System.out.println("usernameOnly = " + usernameOnly);
         }
+    }
+
+    @Test
+    void findByNativeQuery() {
+        // Given
+        Team teamA = new Team("teamA");
+        em.persist(teamA);
+
+        Member member1 = new Member("member1", 10, teamA);
+        Member member2 = new Member("member2", 10, teamA);
+        em.persist(member1);
+        em.persist(member2);
+
+        em.flush();
+        em.clear();
+
+        // When
+        Member result = memberRepository.findByNativeQuery("member1"); // JPQL 이 아닌 sql 쿼리를 작성하는 방법. 제약이 너무 많다. -> 가급적 네이티브 쿼리는 안 쓰는게 좋다. 차라리 jdbcTemplate 를 쓰는게 낫다.
+        System.out.println("result = " + result);
+
+        // 최근 네이티브 쿼리와 프로젝션의 결합으로 편하게 조회하는 방법이 생김
+        // 반환타입으로 받을 수 있음
+        // 페이징도 가능하다. 다만 sql 을 직접 작성하는 것이기 때문에 카운트 쿼리를 별도로 작성해야 한다. -> 옵션으로 가능
+
+        Page<MemberProjection> pageResult = memberRepository.findByNativeProjection(PageRequest.of(0, 10));
+        List<MemberProjection> content = pageResult.getContent();
+        for (MemberProjection memberProjection : content) {
+            System.out.println("memberProjection.getUsername() = " + memberProjection.getUsername());
+            System.out.println("memberProjection.getTeamName() = " + memberProjection.getTeamName());
+        }
+
     }
 }
