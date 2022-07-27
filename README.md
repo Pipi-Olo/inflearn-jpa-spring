@@ -137,3 +137,176 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 * 동적 쿼리는 `QuerDSL` 을 사용한다.
 
 ---
+
+# 쿼리 메소드 이해
+## 파라미터 바인딩
+```sql
+select m from Member m where m.username = ?0    // 위치 기반
+select m from Member m where m.username = :name // 이름 기반
+```
+```java
+@Query("select m from Member m where m.username in :names")
+List<Member> findByNames(@Param("names") List<String> names);
+```
+
+* 파라미터 바인딩은 위치 기반, 이름 기반 2가지 방법이 있다.
+* 무조건 이름 기반 파라미터 바인딩을 사용하자.
+  * 위치 기반은 순서가 바뀔 수 있다.
+* 컬렉션 파라미터 바인딩이 가능하다.
+  * IN 쿼리가 지원된다.
+
+## 반환 타입
+```java
+public interface MemberRepository extends JpaRepository<Member, Long> {
+
+	List<Member> findByUsername(String username);
+    Member findByUsername(String username);
+    Optional<Member> findByUsername(String username);
+}
+````
+* `List<Member>`
+  * 결과가 없으면 빈 컬렉션을 반환한다.
+* `Member`
+  * 결과가 없으면 `null` 을 반환한다.
+  * 결과가 2개 이상이면 `NonUniqueResultException` 예외가 발생한다.
+* `Optional<Member>`
+  * 단건 조회일 경우, `Optional` 을 사용하자.
+
+> **참고**
+> 반환 타입만 다르고 메소드 이름, 매개변수가 같으면 오버로딩이 동작하지 않는다. 컴파일 오류가 발생한다.
+
+## 페이징과 정렬
+```java
+public interface Page<T> extends Slice<T> {
+	int getTotalPages();     // 전체 페이지 수
+    long getTotalElements(); // 전체 데이터 수
+    <U> Page<U> map(Function<? super T, ? extends U> converter); // 변환
+}
+```
+```java
+public interface MemberRepository extends JpaRepository<Member, Long> {
+
+	Page<Member> findPageByAge(int age, Pageable pageable);
+    Slice<Member> findSliceByAge(int age, Pageable pageable);
+    List<Member> findListByAge(int age, Pageable pageable);
+    
+    @Query(value = "select m from Member m", countQuery = "select count(m.id) from Member m")
+    Page<Member> findByAgeDetachCountQuery(int age, Pageable pageable);
+}
+```
+```java
+@Test
+public void paging() {
+    // Given
+    memberRepository.save(new Member("member1", 10));
+    memberRepository.save(new Member("member2", 10));
+    memberRepository.save(new Member("member3", 10));
+    memberRepository.save(new Member("member4", 10));
+    memberRepository.save(new Member("member5", 10));
+
+    PageRequest pageRequest = PageRequest.of(0, 3, Sort.by(Sort.Direction.DESC, "username"));
+    int age = 10;
+
+    // When
+    Page<Member> page = memberRepository.findByAge(age, pageRequest);
+
+    Page<MemberDto> map = page.map(member -> new MemberDto(
+                member.getId(), 
+                member.getUsername(),
+                member.getTeam().getName()));
+
+    // Then
+    List<Member> content = page.getContent();
+    int totalPages = page.getTotalPages();        // 전체 페이지 수
+    long totalElements = page.getTotalElements(); // 전체 데이터 수
+}
+```
+
+* `Page<Member>`
+  * 추가로 count 쿼리가 자동으로 실행된다.
+    * `Page` 인터페이스의 `getTotalPages()` 메소드를 위해 반드시 필요하다.
+* `Slice<Member>`
+  * 페이지 없이 '더보기'로 데이터를 확인하는 방법이다.
+    * 다음 페이지만 확인이 가능하다.
+    * count 쿼리가 필요없다.
+  * 내부적으로 `limit + 1` 조회한다.
+    * 다음 데이터가 있는지 바로 확인 가능하다.
+* `List<Member>`
+  * 페이지 없이 결과만 반환한다.
+  * count 쿼리가 필요없다.
+* `@Query(value = "select m from Member m", countQuery = "select count(m) from Member m")`
+  * 조인을 사용할 경우, 조인 테이블을 대상으로 count 쿼리가 실행된다. 👉 성능 이슈
+  * 별도로 count 쿼리를 정의할 수 있다.
+* `PageRequest`
+  * `Pageable` 인터페이스 구현체이다.
+  * 생성자 파라미터는 (현재 페이지, 조회할 데이터 수, 정렬 정보) 와 같다.
+* `page.map()`
+  * 엔티티를 반환하면 안 된다.
+  * DTO 로 변환해서 반환할 때 사용한다.
+
+> **참고**
+> 스프링 데이터 JPA 에서 제공하는 `Page` 는 0부터 시작한다.
+
+## 벌크 수정 쿼리
+```java
+public interface MemberRepository extends JpaRepository<Member, Long> {
+
+    @Modifying(clearAutomatically = true) 
+    @Query("update Member m set m.age = m.age + 1 where m.age >= :age")
+    int bulkAgePlus(@Param("age") int age);
+}
+```
+* 변경 감지(`Dirty Checking`) 없이 대용량 데이터를 수정 및 삭제할 때 사용한다.
+  * 변경 감지는 실시간 대응에 알맞는 방법이다.
+  * 변경 감지는 N 개 엔티티를 수정하면 N 개 update 쿼리가 실행된다.
+* 벌크 수정, 삭제 쿼리는 `@Modifying` 애노테이션을 사용한다.
+  * 내부적으로 JPA `executeUpdate()` 벌크 연산을 실시한다.
+  * 사용하지 않으면 예외가 발생한다.
+* `(clearAutomatically = true)`
+  * 벌크 연산 후 자동으로 영속성 컨텍스트를 초기화한다.
+
+> **참고**
+> 벌크 연산은 영속성 컨텍스트를 무시하고 데이터베이스에 직접 쿼리를 실행한다. 데이터베이스와 영속성 컨텍스트의 엔티티가 달라질 수 있다.
+> 1. 벌크 연산을 제일 먼저 실행한다. 영속성 컨텍스트에 엔티티가 없는 상태이기 때문에 문제없다.
+> 2. 벌크 연산 후, 영속성 컨텍스트를 초기화한다.
+
+## @EntityGraph
+```java
+public interface MemberRepository extends JpaRepository<Member, Long> {
+
+    @Override
+    @EntityGraph(attributePaths = "team")
+    List<Member> findAll();
+}
+```
+
+* member → team 은 지연로딩 관계이다. memberList 를 조회할 때, `1 + N` 문제가 발생한다.
+  * member 조회하는 쿼리 1개, 각 member 의 team 을 조회하는 쿼리 N 개
+  * 반대로 team 을 조회할 때도 `1 + N` 문제가 발생한다.
+    * team 조회하는 쿼리 1개, team 의 각 member 를 조회하는 쿼리 N 개
+  * 페치 조인이 필요하다.
+* `@EntityGraph`
+  * 간단한 페치 조인을 사용할 때, `@EntityGraph` 를 사용한다.
+    * 내부적으로 LEFT OUTER JOIN 을 사용한다.
+  * 복잡한 페치 조인은 직접 `jpql` 쿼리를 작성한다.
+
+## JPA Hiny & Lock
+```java
+public interface MemberRepository extends JpaRepository<Member, Long> {
+
+    @QueryHints(value = @QueryHint(name = "org.hibernate.readOnly", value = "true"))
+    Member findReadOnlyByUsername(String username);
+    
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Member findLockByUsername(String username);
+}
+```
+
+* `@QueryHints`
+  * JPA 구현체에게 힌트를 제공할 수 있다.
+  * `org.hibernate.readOnly` 를 사용하면 `em.flush()` 를 해도 update 쿼리가 실행되지 않는다.
+* `@Lock(LockModeType.PESSIMISTIC_WRITE)`
+  * `select for update` 쿼리가 실행된다. 비관적 락이다.
+  * 실시간 트래픽이 많은 곳에서는 사용하면 안 된다. 낙관적 락을 사용하자.
+
+---
