@@ -310,3 +310,183 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
   * 실시간 트래픽이 많은 곳에서는 사용하면 안 된다. 낙관적 락을 사용하자.
 
 ---
+
+# 스프링 데이터 JPA 확장
+## 사용자 정의 리포지토리
+```java
+public interface MemberRepository extends 
+        JpaRepository<Member, Long>, 
+        MemberRepositoryCustom {
+}
+```
+```java
+public interface MemberRepositoryCustom {
+    List<Member> findMemberCustom();
+}
+```
+```java
+@RequiredArgsConstructor
+public class MemberRepositoryCustomImpl implements MemberRepositoryCustom {
+
+    private final EntityManager em;
+
+    @Override
+    public List<Member> findMemberCustom() {
+        return em.createQuery("select m from Member m", Member.class)
+                .getResultList();
+    }
+}
+```
+```java
+@RequiredArgsConstructor
+@Repository
+public class MemberQueryRepository {
+
+    private final EntityManager em;
+
+    public List<MemberDto> findAll() {
+        return em.createQuery("select new datajpa.MemberDto(m.id, m.username) " +
+                              "from Member m", MemberDto.class)
+                .getResultList();
+    }
+}
+
+```
+
+* 사용자 정의 리포지토리 클래스 이름은 인터페이스 이름 뒤에 `Impl` 을 붙여야 한다.
+  * `MemberRepositoryImpl` 혹은 `MemberRepositoryCustomImpl` 둘다 가능하다.
+    * `MemberRepositoryCustomImpl` 을 추천한다.
+  * 스프링 데이터 JPA 가 스프링 빈으로 등록해준다.
+  * 기존 `memberRepository` 에 기능이 추가된다.
+* 임의의 리포지토리를 등록할 수 있다.
+  * `MemberQueryRepository` 클래스를 생성해서 `@Repository` 애노테이션을 붙이면 된다.
+  * 스프링 데이터 JPA 와 무관하게 동작한다.
+    * 서비스 계층에서 `memberQueryRepository` 멤버 변수를 추가적으로 선언해야 한다.
+
+> **참고**
+> 스프링 데이터 JPA 는 인터페이스만 정의하면 구현체는 자동으로 생성해준다.
+> `QueryDSL`, `MyBatis`, `EntityManager` 등 스프링 데이터 JPA 기술 이외의 다른 기술을 사용할 때, 사용자 정의 리포지토리를 사용한다. `JpaRepository` 인터페이스 구현체를 만드는 것은 너무 많은 기능을 직접 구현해야 한다.
+
+> **참고**
+> `MemberQueryRepository` 클래스는 특정 화면이나 API 에 의존적인 Query 를 사용할 때 쓰는 리포지토리이다. 
+> 핵심 비지니스 로직과 API 로직의 유지보수 라이프 사이클이 다르기 때문에 별도로 관리해야 한다. 주로 DTO 형태로 조회한다.
+
+## Auditing
+```java
+@EnableJpaAuditing
+@SpringBootApplication
+public class DataJpaApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(DataJpaApplication.class, args);
+    }
+    
+    @Bean
+    public AuditorAware<String> auditorProvider() {
+        return () -> Optional.of(UUID.randomUUID().toString());
+    }
+}
+```
+```java
+@Getter
+@EntityListeners(AuditingEntityListener.class)
+@MappedSuperclass
+public class BaseTimeEntity {
+
+    @CreatedDate
+    @Column(updatable = false)
+    private LocalDateTime createdDate;
+
+    @LastModifiedDate
+    private LocalDateTime lastModifiedDate;
+}
+```
+```java
+@Getter
+@EntityListeners(AuditingEntityListener.class)
+@MappedSuperclass
+public class BaseEntity extends BaseTimeEntity {
+
+    @CreatedBy
+    @Column(updatable = false)
+    private String createdBy;
+
+    @LastModifiedBy
+    private String lastModifiedBy;
+}
+```
+```java
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Entity
+public class Member extends BaseEntity {
+
+    @Id @GeneratedValue
+    @Column(name = "member_id")
+    private Long id;
+}
+```
+* `@EnableJpaAuditing`
+  * JPA Auditing 기능을 사용하기 위해서는
+* 대부분의 엔티티는 등록∙수정 시간이 필요하지만, 등록자∙수정자는 필요 없을 수도 있다.
+  * `BaseTimeEntity` 클래스와 `BaseEntity` 클래스로 분리한다.
+* `AuditorAware<String> auditorProvider()`
+  * 등록자∙수정자를 처리하는 로직이 별도로 필요하다.
+  * 일반적으로 세션 정보나 스프링 시큐리티 로그인 정보를 사용한다.
+
+## Web 확장 - 도메인 클래스 컨버터
+```java
+@RestController
+public class MemberController {
+    
+    @GetMapping("/members2/{id}")
+    public String findMember(@PathVariable("id") Member member) {
+        return member.getUsername();
+    }
+}
+```
+
+* 매개 변수로 Member 엔티티를 받을 수 있다.
+  * 도메인 클래스 컨버터도 내부적으로 `Id` 를 이용해 리포지토리에서 엔티티를 찾는다.
+* 사용하지 말자.
+  * 트랜잭션이 없는 범위에서 엔티티를 사용하는 것은 위험하다.
+  * `OSIV` 참고하자.
+
+## Web 확장 - 페이징과 정렬
+```java
+@RestController
+public class MemberController {
+
+    @GetMapping("/members")
+    public Page<MemberDto> members(@PageableDefault(size = 5, sort = "username") Pageable pageable) {
+        return memberRepository.findAll(pageable)
+                .map(MemberDto::new);
+    }
+}
+```
+```yml
+spring:
+  data:
+    web:
+      pageable:
+        default-page-size: 20 # 기본 페이지 사이즈
+        max-page-size: 2000   # 최대 페이지 사이즈
+        one-indexed-parameters: true
+```
+
+* `Pageable` 를 파라미터로 받을 수 있다.
+  * `Pageable` 은 인터페이스이다. 구현체로 `PageRequest` 가 넘어온다.
+* `/members?page=0&size=3&sort=id,desc` 요청 파라미터 형식으로 넘어온 URL 을 통해 `PageRequest` 객체를 생성한다.
+  * `page` 는 0 부터 시작한다.
+  * `size` 👉 한 페이지에 노출할 데이터 수
+  * `sort` 👉 정렬 조건을 정의한다. `&` 로 여러 정렬 조건을 받을 수 있다.
+* 엔티티를 외부에 노출하면 안 된다.
+  * `page.map()` 을 통해 `MemberDto` 로 변환한다.
+* `@PageableDefault`
+  * 개별적으로 기본 값을 설정할 수 있다.
+  * 글로벌 설정은 `application.yml` 을 사용한다.
+* `one-indexed-parameters: true`
+  * HTTP 요청 `page` 가 1 부터 시작한다.
+  * 하지만 HTTP 응답에는 여전히 페이지가 0 부터 시작한다.
+  * 사용하지 말자.
+
+---
