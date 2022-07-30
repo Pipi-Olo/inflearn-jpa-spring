@@ -443,7 +443,7 @@ public class Member extends BaseEntity {
 }
 ```
 * `@EnableJpaAuditing`
-  * JPA Auditing 기능을 사용하기 위해서는
+  * JPA Auditing 기능을 사용하기 위해서는 선언해야 한다.
 * 대부분의 엔티티는 등록∙수정 시간이 필요하지만, 등록자∙수정자는 필요 없을 수도 있다.
   * `BaseTimeEntity` 클래스와 `BaseEntity` 클래스로 분리한다.
 * `AuditorAware<String> auditorProvider()`
@@ -474,7 +474,9 @@ public class MemberController {
 public class MemberController {
 
     @GetMapping("/members")
-    public Page<MemberDto> members(@PageableDefault(size = 5, sort = "username") Pageable pageable) {
+    public Page<MemberDto> members(
+            @PageableDefault(size = 5, sort = "username") Pageable pageable
+    ) {
         return memberRepository.findAll(pageable)
                 .map(MemberDto::new);
     }
@@ -600,3 +602,62 @@ public class Member extends BaseTimeEntity implements Persistable<String> {
 
 ---
 
+# 나머지 기능
+## Specifications
+
+* 내부적으로 `JPA Criteria` 를 사용한다.
+  * `Criteria` 는 복잡해서 코드를 읽기가 어렵다.
+* `QueryDSL` 을 사용하자.
+
+## Query by Example
+
+* LEFT JOIN 이 불가능하다.
+* `QueryDSL` 을 사용하자.
+
+## Projections
+```java
+public interface UsernameOnly {
+	String getUsername();
+}
+```
+```java
+public interface UserTeamDto {
+	
+    String getUsername();
+    TeamDto getTeam();
+    
+    interface TeamDto {
+    	String getName();
+    }
+}
+```
+```java
+public interface MemberRepository extends JpaRepository<Member, Long> {
+
+	List<UsernameOnly> findByUsername(String username);
+    <T> List<T> findByUsername(String username, Class<T> type);
+}
+```
+
+* DTO 조회할 때 사용한다. 필요한 컬럼만 SELECT 한다.
+* 프로퍼티 형식의 인터페이스를 작성하면, 스프링 데이터 JPA 가 구현체를 제공한다.
+  * 클래스 기반으로도 가능하다. 생성자 파라미터 이름으로 매핑한다.
+* 제네릭 타입으로 동적으로 데이터 변경 가능하다.
+* UserTeamDto 처럼 조인을 해야할 경우 JPQL SELECT 절 최적화가 불가능하다.
+  * 모든 필드를 SELECT 한 뒤, Dto 에 매핑한다.
+* 단순한 경우에만 사용하자. 복잡한 경우에는 `QueryDSL` 을 사용하자.
+
+## 네이티브 쿼리
+```java
+public interface MemberRepository extends JpaRepository<Member, Long> {
+
+    @Query(value = "select * from member where username = ?", nativeQuery = true)
+    Member findByNativeQuery(String username);
+}
+```
+
+* SQL 을 직접 입력하는 방법이다.
+* 동적 쿼리가 불가능하다.
+* Sort 파라미터를 통한 정렬이 정상 동작하지 않는다.
+* JPQL 처럼 애플리케이션 로딩 시점에 문법 오류 확인이 불가능하다.
+* 가급접 네이티브 쿼리는 사용하지 말자. → 대신에 스프링 데이터 `Projections` 를 사용하자.
